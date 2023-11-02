@@ -1,0 +1,49 @@
+// Définition du package
+package holonicSearch
+
+// Import des modules SARL
+import io.sarl.api.core.Initialize
+import io.sarl.api.core.Lifecycle
+import io.sarl.api.core.Logging
+import io.sarl.api.core.Schedules
+import io.sarl.api.core.DefaultContextInteractions
+
+// Déclaration de l'agent SearchManager
+agent SearchManager {
+	// Utilisation des capacités SARL
+	uses Lifecycle, Schedules, Logging, DefaultContextInteractions
+
+	// Chemin du répertoire et critères de recherche
+	val path = "C:\\Users\\CHAUSSON\\OneDrive\\Documents\\testSearch"
+	val criteria = ".sarl"
+
+
+	on Initialize {
+		loggingName = "Agent gestionnaire de recherche"
+
+		// Tâche pour découvrir le SearchAgent
+		task("discovery").every(1000) [ // Toute les secondes on regarde si on a l'agent qui est là !
+			// Pour savoir si l'agent de recherche qui est apparue dans le JanusDefaultContext on peut lancer la recherche, donc s'il y a au moins 1 Participant dans le default space 
+			if (defaultSpace.numberOfStrongParticipants > 1) {
+				info("Agent de recherche détecté.")
+				// Émission d'une requête de recherche
+                emit(new SearchRequest(path, criteria))
+				// Annulation de la tâche de découverte
+				task("discovery").cancel
+			}
+		]
+	}
+
+	// Événement FileFound
+	on FileFound {
+		// Message en français
+		info("Voici le fichier trouvé : " + occurrence.fileFoundPath + " qui a bien l'extension : " + criteria)
+	}
+
+	// Événement SearchFinished
+	on SearchFinished {
+        info("Holarchie détruite.")
+		// La recherche est finie donc on tue l'agent
+		killMe
+	}
+}

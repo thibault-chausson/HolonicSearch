@@ -1,0 +1,30 @@
+package holonicSearch
+
+// Importation des classes nécessaires depuis la bibliothèque SARL
+import io.sarl.api.core.Initialize
+import io.sarl.api.core.Lifecycle
+import io.sarl.api.core.Logging
+
+// Définition de l'agent BootAgent
+agent BootAgent {
+
+	// Utilisation des compétences (skills) Lifecycle et Logging
+	uses Lifecycle, Logging
+
+	// Réaction à l'événement Initialize qui est émis lors de la création de l'agent
+	on Initialize {
+
+		// Mise à jour du nom qui sera utilisé dans les logs
+		loggingName = "Boot agent"
+
+		// Création d'un nouvel agent de type SearchAgent
+		spawn(SearchAgent)
+
+		// Création d'un nouvel agent de type SearchManager
+		spawn(SearchManager)
+
+		// Destruction de cet agent (BootAgent)
+		//in(3000)[killMe]
+		killMe
+	}
+}

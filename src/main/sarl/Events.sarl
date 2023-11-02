@@ -1,0 +1,32 @@
+// Définition du package
+package holonicSearch
+
+// Déclaration de l'événement SearchRequest qui donne l'ordre à un agent de commencer la recherche
+event SearchRequest {
+	// Chemin du répertoire à chercher
+	val dirPath : String
+	// Critères de recherche à savoir l'extension ".sarl"
+	val criteria : String
+
+	// Constructeur
+	new (p : String, c : String) {
+		dirPath = p
+		criteria = c
+	}
+}
+
+// Déclaration de l'événement FileFound qui a pour but de retourner le chemin du fichier avec l'extension ".sarl"
+event FileFound {
+	// Chemin du fichier trouvé
+	val fileFoundPath : String
+
+	// Constructeur
+	new (p : String) {
+		fileFoundPath = p
+	}
+}
+
+// Déclaration de l'événement SearchFinished
+event SearchFinished {
+	// Pas de champs, cet événement sert uniquement à signaler la fin de la recherche
+}

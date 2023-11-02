@@ -1,0 +1,110 @@
+// Définition du package
+package holonicSearch
+
+// Import des modules SARL et Java
+import io.sarl.api.core.Initialize
+import io.sarl.api.core.Lifecycle
+import io.sarl.api.core.Logging
+import io.sarl.api.core.Schedules
+import io.sarl.api.core.MemberLeft
+import io.sarl.api.core.ParticipantJoined
+import io.sarl.api.core.DefaultContextInteractions
+import io.sarl.api.core.InnerContextAccess
+
+import java.util.UUID
+import java.nio.file.Paths
+import java.util.concurrent.ConcurrentSkipListMap
+
+// Définition d'un classe pour transmettre les informations de l'évent SearchRequest à l'évent ParticipantJoined
+public class FileCriteria {
+	val path : String
+	val criteria : String
+
+	new (p : String, c : String) {
+		this.path = p
+		this.criteria = c
+	}
+
+	def getPath() : String {
+		return this.path
+	}
+
+	def getCriteria() : String {
+		return this.criteria
+	}
+}
+
+
+
+// Déclaration de l'agent SearchAgent
+agent SearchAgent {
+	uses Lifecycle, Logging, InnerContextAccess, DefaultContextInteractions
+
+	// Liste des enfants du type ID, chemin du dossier à chercher, extension
+	val childUIDs = new ConcurrentSkipListMap<UUID, FileCriteria>
+
+	// Identifiant du parent
+	var idParent : UUID
+
+	// Événement Initialize
+	on Initialize {
+		loggingName = "Agent de recherche" // Pour avoir un beau nom dans la console
+	}
+
+	// Événement SearchRequest
+	on SearchRequest [!isFromMe] { // On déclanche l'événement s'il ne vient das de lui
+		// Récupération de l'ID de son père
+		idParent = occurrence.source.ID
+		val path = Paths.get(occurrence.dirPath) // On utilise le module Java pour récupérer le chemin dans le bon format
+		val criteria = occurrence.criteria // On récupére les infromations de l'événement
+
+		// On parcourt tout le fichier
+		for (file : path.toFile.listFiles()) {
+			if (file.isDirectory) { // Si c'est un dossier on crée un nouvel agent
+				val aid = UUID::randomUUID
+				info("Création de l'agent numéro " + ID + " qui cherchera dans ce dossier : " + file.path)
+				childUIDs.put(aid, new FileCriteria(file.path, criteria))
+				spawnInContextWithID(SearchAgent, aid, innerContext) // On le fait spawn
+			} else {
+				if (file.path.contains(criteria)) {
+					info("L'enfant avec l'ID numéro " + ID + " a trouvé le fichier : " + file.path) // On prévient l'utilisateur que l'on a bien trouvé un fichier
+					emit(new FileFound(file.path))[it.ID == idParent] // On passe l'info à notre père
+				}
+			}
+		}
+		if (childUIDs.size <= 0) {
+			info("Je n'ai jamais eu d'enfants : je me tue.")
+			killMe
+		}
+	}
+
+	// Événement ParticipantJoined
+	on ParticipantJoined [occurrence.spaceID.contextID == innerContext.ID] {
+		var childID = occurrence.source.ID
+		if (childUIDs.containsKey(childID)) { // On regarde dans quel fichier on doit lancer la recherche de notre nouvel agent
+			val path = childUIDs.get(childID).getPath().toString
+			val criteria = childUIDs.get(childID).getCriteria().toString
+			info("Enfant créé numéro " + childID + " avec le chemin : " + path)
+			innerContext.defaultSpace.emit(ID, new SearchRequest(path, criteria))[it == occurrence.source]
+		}
+	}
+
+	// Événement FileFound
+	on FileFound {
+		// Si un de ses descendent à trouvé un fichier on fait remonté l'info au fur et à mesure
+		emit(new FileFound(occurrence.fileFoundPath))[it.ID == idParent]
+	}
+
+	// Événement MemberLeft
+	on MemberLeft {
+		var childID = occurrence.agentID
+		if (childUIDs.containsKey(childID)) {
+			childUIDs.remove(childID)
+			if (childUIDs.size <= 0) { // S'il n'a plus d'enfant il peut mourir
+				info("Je n'ai plus d'enfants : je me tue.")
+				emit(new SearchFinished)
+				killMe
+			}
+		}
+	}
+}
